@@ -65,7 +65,7 @@ export default function DashboardPage() {
 
   const { data: todayGroups } = useQuery({
     queryKey: ['groups', 'today'],
-    queryFn: () => groupsApi.getToday() as any,
+    queryFn: () => groupsApi.getAll({ isActive: true, limit: 50 }) as any,
     staleTime: 1000 * 60 * 10,
   });
 
