@@ -16,28 +16,29 @@ export default function AttendancePage() {
   });
 
   const { data: lessonData, isLoading } = useQuery({
-    queryKey: ['attendance', 'lesson', selectedGroupId, selectedDate],
-    queryFn: () => attendanceApi.getLessonAttendance(selectedGroupId, selectedDate) as any,
+    queryKey: ['attendance', 'group', selectedGroupId, selectedDate],
+    queryFn: () => attendanceApi.getGroupAttendance(selectedGroupId, selectedDate) as any,
     enabled: !!selectedGroupId,
   });
 
-  const { data: dashboardData } = useQuery({
-    queryKey: ['attendance', 'dashboard'],
-    queryFn: () => attendanceApi.getDashboard() as any,
+  const { data: analyticsData } = useQuery({
+    queryKey: ['attendance', 'analytics'],
+    queryFn: () => attendanceApi.getAnalytics() as any,
   });
 
   const groups = (groupsData as any)?.data || [];
-  const lessons = (lessonData as any) || [];
-  const dashboard = (dashboardData as any) || {};
+  const lessons = (lessonData as any)?.data || (lessonData as any) || [];
+  const analytics = (analyticsData as any) || {};
 
   const STATUS_COLORS: Record<string, string> = {
     PRESENT: 'bg-green-500/10 text-green-600 border-green-200',
-    ABSENT: 'bg-red-500/10 text-red-600 border-red-200',
-    LATE: 'bg-yellow-500/10 text-yellow-600 border-yellow-200',
-    NOT_TAKEN: 'bg-muted text-muted-foreground border-border',
+    ABSENT:  'bg-red-500/10 text-red-600 border-red-200',
+    LATE:    'bg-yellow-500/10 text-yellow-600 border-yellow-200',
   };
   const STATUS_LABELS: Record<string, string> = {
-    PRESENT: 'Keldi', ABSENT: 'Kelmadi', LATE: 'Kech keldi', NOT_TAKEN: 'Qayd etilmagan',
+    PRESENT: 'Keldi',
+    ABSENT:  'Kelmadi',
+    LATE:    'Kech keldi',
   };
 
   return (
@@ -50,10 +51,10 @@ export default function AttendancePage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Bugun qayd etilgan', value: dashboard.todayTotal ?? 0, icon: CalendarDays, color: 'bg-blue-500/10 text-blue-500' },
-          { label: 'Kelganlar', value: dashboard.todayPresent ?? 0, icon: Users, color: 'bg-green-500/10 text-green-500' },
-          { label: 'Davomat %', value: `${dashboard.todayRate ?? 0}%`, icon: TrendingUp, color: 'bg-primary/10 text-primary' },
-          { label: "Ko'p qoldirganlar", value: dashboard.mostAbsent?.length ?? 0, icon: AlertTriangle, color: 'bg-red-500/10 text-red-500' },
+          { label: 'Bugun qayd etilgan', value: analytics.todayTotal ?? 0, icon: CalendarDays, color: 'bg-blue-500/10 text-blue-500' },
+          { label: 'Kelganlar', value: analytics.todayPresent ?? 0, icon: Users, color: 'bg-green-500/10 text-green-500' },
+          { label: 'Davomat %', value: `${analytics.todayRate ?? 0}%`, icon: TrendingUp, color: 'bg-primary/10 text-primary' },
+          { label: "Ko'p qoldirganlar", value: analytics.absentCount ?? 0, icon: AlertTriangle, color: 'bg-red-500/10 text-red-500' },
         ].map((stat) => (
           <div key={stat.label} className="bg-card border border-border rounded-2xl p-4">
             <div className="flex items-start justify-between">
@@ -62,7 +63,7 @@ export default function AttendancePage() {
                 <p className="text-2xl font-bold text-foreground mt-1">{stat.value}</p>
               </div>
               <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', stat.color)}>
-                <stat.icon className="w-4.5 h-4.5" />
+                <stat.icon className="w-5 h-5" />
               </div>
             </div>
           </div>
@@ -71,13 +72,24 @@ export default function AttendancePage() {
 
       {/* Lesson attendance */}
       <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="font-semibold text-foreground mb-4">Dars davomati</h3>
+        <h3 className="font-semibold text-foreground mb-4">Guruh davomati</h3>
         <div className="flex flex-wrap gap-3 mb-4">
-          <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="h-10 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
+          <select
+            value={selectedGroupId}
+            onChange={(e) => setSelectedGroupId(e.target.value)}
+            className="h-10 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+          >
             <option value="">Guruh tanlang</option>
-            {groups.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            {groups.map((g: any) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
           </select>
-          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-10 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="h-10 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+          />
         </div>
 
         {!selectedGroupId ? (
@@ -85,19 +97,21 @@ export default function AttendancePage() {
         ) : isLoading ? (
           <p className="text-center text-muted-foreground text-sm py-8">Yuklanmoqda...</p>
         ) : lessons.length === 0 ? (
-          <p className="text-center text-muted-foreground text-sm py-8">Ma'lumot topilmadi</p>
+          <p className="text-center text-muted-foreground text-sm py-8">Bu sana uchun davomat topilmadi</p>
         ) : (
           <div className="space-y-2">
             {lessons.map((item: any) => (
-              <div key={item.student?.id} className="flex items-center justify-between p-3 rounded-xl border border-border">
+              <div key={item.studentId || item.student?.id} className="flex items-center justify-between p-3 rounded-xl border border-border">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">
                     {item.student?.firstName?.[0]}{item.student?.lastName?.[0]}
                   </div>
-                  <span className="text-sm font-medium text-foreground">{item.student?.firstName} {item.student?.lastName}</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {item.student?.firstName} {item.student?.lastName}
+                  </span>
                 </div>
-                <span className={cn('text-xs px-2.5 py-1 rounded-full border font-medium', STATUS_COLORS[item.status || 'NOT_TAKEN'])}>
-                  {STATUS_LABELS[item.status || 'NOT_TAKEN']}
+                <span className={cn('text-xs px-2.5 py-1 rounded-full border font-medium', STATUS_COLORS[item.status] || 'bg-muted text-muted-foreground border-border')}>
+                  {STATUS_LABELS[item.status] || 'Noma\'lum'}
                 </span>
               </div>
             ))}
