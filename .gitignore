@@ -1,2 +1,17 @@
 node_modules
 package-lock.json
+
+postgresql://neondb_owner:npg_7zU4dkAyeOfS@ep-odd-poetry-ap5xisxc.c-7.us-east-1.aws.neon.tech/neondb?sslmode=require
+npx neonctl@latest init
+
+redis-cli --tls -u redis://default:gQAAAAAAAW35AAIgcDE4YTk4OWQ1NmEwZjA0OGZlODJhNmQ5MTk5Mjk5YjQxOA@grateful-seagull-93689.upstash.io:6379
+
+DATABASE_URL       = postgresql://neondb_owner:npg_7zU4dkAyeOfS@ep-odd-poetry-ap5xisxc.c-7.us-east-1.aws.neon.tech/neondb?sslmode=require
+REDIS_URL          = redis://default:gQAAAAAAAW35AAIgcDE4YTk4OWQ1NmEwZjA0OGZlODJhNmQ5MTk5Mjk5YjQxOA@grateful-seagull-93689.upstash.io:6379
+JWT_SECRET         = educrmeducrmeducrmeducrmeducrmmm
+JWT_REFRESH_SECRET = eeeducrmeducrmeducrmeducrmeducrmmm
+NODE_ENV           = production
+PORT               = 10000
+FRONTEND_URL       = https://localhost:3000
+
+
