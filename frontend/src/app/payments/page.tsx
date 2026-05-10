@@ -21,7 +21,7 @@ export default function PaymentsPage() {
 
   const { data: summaryData } = useQuery({
     queryKey: ['payments', 'summary'],
-    queryFn: () => paymentsApi.getSummary() as any,
+  queryFn: () => paymentsApi.getAnalytics() as any,
   });
 
   const { data, isLoading } = useQuery({

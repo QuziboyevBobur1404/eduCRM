@@ -30,7 +30,7 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
-      const res = await authApi.login(data) as any;
+      const res = await authApi.login(data as { email: string; password: string }) as any;
       login(res.user, res.accessToken);
       toast.success('Xush kelibsiz!', { description: `${res.user.firstName} ${res.user.lastName}` });
       router.push('/dashboard');

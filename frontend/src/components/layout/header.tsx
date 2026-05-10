@@ -20,7 +20,7 @@ export function Header() {
 
   const { data: unreadCount } = useQuery({
     queryKey: ['notifications', 'unread'],
-    queryFn: () => notificationsApi.getUnreadCount() as Promise<number>,
+    queryFn: () => notificationsApi.getUnreadCount() as any,
     refetchInterval: 30000,
   });
 
