@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -6,22 +6,30 @@ import { PaymentStatus, StudentStatus, AttendanceStatus } from '../common/enums/
 
 @Injectable()
 export class AnalyticsService {
+  private readonly logger = new Logger(AnalyticsService.name);
+
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
-  ) {}
+  ) { }
 
-  // ── Dashboard KPIs (cached 5 min) ────────────────────────
+  // ── Dashboard KPIs ────────────────────────────────────────
   async getDashboardStats(tenantId: string) {
-    const cacheKey = `dashboard:${tenantId}`;
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return cached;
+    // Try cache - if Redis fails, continue without cache
+    try {
+      const cached = await this.redis.get(`dashboard:${tenantId}`);
+      if (cached) return cached;
+    } catch {
+      this.logger.warn('Redis unavailable, skipping cache');
+    }
 
     const now = new Date();
     const thisMonth = now.getMonth() + 1;
     const thisYear = now.getFullYear();
-    const todayStart = new Date(now.setHours(0, 0, 0, 0));
-    const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
 
     const [
       totalStudents,
@@ -58,12 +66,8 @@ export class AnalyticsService {
         orderBy: { createdAt: 'desc' },
         take: 5,
         select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          avatar: true,
-          createdAt: true,
-          status: true,
+          id: true, firstName: true, lastName: true,
+          avatar: true, createdAt: true, status: true,
         },
       }),
     ]);
@@ -86,16 +90,24 @@ export class AnalyticsService {
       generatedAt: new Date().toISOString(),
     };
 
-    // Cache for 5 minutes
-    await this.redis.set(cacheKey, stats, 300);
+    // Cache - ignore Redis errors
+    try {
+      await this.redis.set(`dashboard:${tenantId}`, stats, 300);
+    } catch {
+      this.logger.warn('Redis unavailable, skipping cache set');
+    }
+
     return stats;
   }
 
   // ── Monthly growth chart ──────────────────────────────────
   async getGrowthChart(tenantId: string, year: number) {
-    const cacheKey = `growth:${tenantId}:${year}`;
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return cached;
+    try {
+      const cached = await this.redis.get(`growth:${tenantId}:${year}`);
+      if (cached) return cached;
+    } catch {
+      this.logger.warn('Redis unavailable, skipping cache');
+    }
 
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -106,18 +118,10 @@ export class AnalyticsService {
 
         const [newStudents, revenue, attendanceRate] = await Promise.all([
           this.prisma.student.count({
-            where: {
-              tenantId,
-              joinedDate: { gte: startDate, lte: endDate },
-            },
+            where: { tenantId, joinedDate: { gte: startDate, lte: endDate } },
           }),
           this.prisma.payment.aggregate({
-            where: {
-              tenantId,
-              status: PaymentStatus.PAID,
-              month,
-              year,
-            },
+            where: { tenantId, status: PaymentStatus.PAID, month, year },
             _sum: { amount: true },
           }),
           this.getMonthlyAttendanceRate(tenantId, month, year),
@@ -132,11 +136,16 @@ export class AnalyticsService {
       }),
     );
 
-    await this.redis.set(cacheKey, data, 3600); // Cache 1 hour
+    try {
+      await this.redis.set(`growth:${tenantId}:${year}`, data, 3600);
+    } catch {
+      this.logger.warn('Redis unavailable, skipping cache set');
+    }
+
     return data;
   }
 
-  // ── Best teachers (by attendance rate) ───────────────────
+  // ── Top teachers ──────────────────────────────────────────
   async getTopTeachers(tenantId: string) {
     const teachers = await this.prisma.teacher.findMany({
       where: { tenantId, isActive: true },
@@ -145,8 +154,7 @@ export class AnalyticsService {
         groups: {
           where: { isActive: true },
           select: {
-            id: true,
-            name: true,
+            id: true, name: true,
             _count: { select: { students: true } },
           },
         },
@@ -155,10 +163,11 @@ export class AnalyticsService {
 
     return teachers.map((t) => ({
       id: t.id,
-      name: `${t.user.firstName} ${t.user.lastName}`,
+      firstName: t.user.firstName,
+      lastName: t.user.lastName,
       avatar: t.user.avatar,
-      groups: t.groups.length,
-      students: t.groups.reduce((sum, g) => sum + g._count.students, 0),
+      groupCount: t.groups.length,
+      studentCount: t.groups.reduce((sum, g) => sum + g._count.students, 0),
     }));
   }
 
@@ -187,9 +196,12 @@ export class AnalyticsService {
     return total > 0 ? Math.round((present / total) * 100) : 0;
   }
 
-  // ── CRON: Invalidate dashboard cache every 10 min ────────
   @Cron('*/10 * * * *')
   async invalidateDashboardCache() {
-    await this.redis.delPattern('dashboard:*');
+    try {
+      await this.redis.delPattern('dashboard:*');
+    } catch {
+      this.logger.warn('Redis unavailable during cache invalidation');
+    }
   }
 }
